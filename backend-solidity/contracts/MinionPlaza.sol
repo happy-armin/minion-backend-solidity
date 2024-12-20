@@ -2,13 +2,15 @@
 pragma solidity ^0.8.0;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { MinionArt } from "./MinionArt.sol";
-import { MinionCoin } from "./MinionCoin.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract MinionPlaza is Ownable {
 	using ECDSA for bytes32;
+	using SafeERC20 for IERC20;
 
 	// Define the domain separator
 	bytes32 public constant DOMAIN_TYPEHASH =
@@ -86,6 +88,7 @@ contract MinionPlaza is Ownable {
 		// Construct the order hash
 		bytes32 orderHash = keccak256(
 			abi.encodePacked(
+				ORDER_TYPEHASH,
 				seller,
 				nftContract,
 				tokenId,
@@ -101,7 +104,7 @@ contract MinionPlaza is Ownable {
 
 		// Create the message hash for EIP-712
 		bytes32 messageHash = keccak256(
-			abi.encodePacked("\x19Ethereum Signed Message:\n32", orderHash)
+			abi.encodePacked("\x19MINION_PLAZA_SIGN:\n32", DOMAIN_SEPARATOR, orderHash)
 		);
 
 		// Recover the signer address from the signature
@@ -115,11 +118,9 @@ contract MinionPlaza is Ownable {
 		executedOrders[orderHash] = true;
 
 		// Transfer MinionCoin from buyer to the seller
-		MinionCoin(paymentToken).approve(address(this), price);
-		MinionCoin(paymentToken).transferFrom(msg.sender, seller, price);
+		IERC20(paymentToken).safeTransferFrom(msg.sender, seller, price);
 
 		// Transfer the NFT from the seller to the buyer
-		MinionArt(nftContract).approve(address(this), tokenId);
 		MinionArt(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
 
 		// Emit an event for the fulfilled order
